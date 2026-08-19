@@ -1,0 +1,373 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TargetTier {
+  A
+  B
+  C
+  ARCHIVE
+}
+
+enum WatchStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum RoleFamily {
+  AI_DEPLOYMENT
+  FORWARD_DEPLOYED_ENGINEERING
+  SOLUTIONS_ENGINEERING
+  CUSTOMER_ENGINEERING
+  APPLIED_AI_ENGINEERING
+  AI_CONSULTING
+  TECHNICAL_PRODUCT_AI_PRODUCT
+  CONTRACT_FRACTIONAL_AI
+  PURE_SOFTWARE_ENGINEERING
+  GROWTH_OPERATOR
+  CUSTOMER_SUCCESS
+  OTHER
+}
+
+enum RemoteType {
+  REMOTE
+  HYBRID
+  ON_SITE
+  FLEXIBLE
+}
+
+enum EmploymentType {
+  PERMANENT
+  CONTRACT
+  FRACTIONAL
+}
+
+enum RoleStatus {
+  NEW
+  REVIEWED
+  ARCHIVED
+}
+
+enum ApplicationStatus {
+  DISCOVERED
+  SHORTLISTED
+  DRAFTING
+  APPLIED
+  RECRUITER_SCREEN
+  HIRING_MANAGER
+  TECHNICAL_ROUND
+  FINAL_ROUND
+  OFFER
+  REJECTED
+  WITHDRAWN
+  ARCHIVED
+}
+
+enum FitLabel {
+  STRONG_APPLY
+  CONSIDER
+  STRETCH
+  LOW_FIT
+  AVOID
+}
+
+enum NoteScope {
+  COMPANY
+  ROLE
+  APPLICATION
+  PROJECT
+}
+
+enum ReminderStatus {
+  OPEN
+  DONE
+  DISMISSED
+}
+
+enum InterviewStage {
+  RECRUITER_SCREEN
+  HIRING_MANAGER
+  TECHNICAL_ROUND
+  FINAL_ROUND
+  OTHER
+}
+
+enum InterviewOutcome {
+  PENDING
+  PASSED
+  FAILED
+  CANCELLED
+}
+
+model TargetProfile {
+  id               String       @id @default(cuid())
+  name             String
+  roleFamilies     RoleFamily[]
+  keywords         String[]
+  regions          String[]
+  minimumSalaryGbp Int
+  isDefault        Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  scores           Score[]
+}
+
+model Company {
+  id             String      @id @default(cuid())
+  name           String
+  normalizedName String      @unique
+  websiteUrl     String?
+  careersUrl     String?
+  stage          String?
+  sectors        String[]
+  hiringRegions  String[]
+  targetTier     TargetTier  @default(B)
+  watchStatus    WatchStatus @default(ACTIVE)
+  rationale      String?
+  lastCheckedAt  DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  roles          Role[]
+  notes          Note[]
+  contacts       Contact[]
+}
+
+model Role {
+  id               String         @id @default(cuid())
+  companyId        String
+  title            String
+  roleFamily       RoleFamily     @default(OTHER)
+  location         String?
+  remoteType       RemoteType     @default(FLEXIBLE)
+  employmentType   EmploymentType @default(PERMANENT)
+  salaryMin        Int?
+  salaryMax        Int?
+  currency         String         @default("GBP")
+  sourcePlatform   String?
+  sourceUrl        String         @unique
+  discoveredAt     DateTime       @default(now())
+  closingDate      DateTime?
+  status           RoleStatus     @default(NEW)
+  summary          String?
+  requirements     String[]
+  responsibilities String[]
+  rawSnapshot      String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  company          Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  application      Application?
+  scores           Score[]
+  notes            Note[]
+  interviews       Interview[]
+}
+
+model Score {
+  id              String        @id @default(cuid())
+  roleId          String
+  targetProfileId String
+  overall         Int
+  confidence      Int
+  label           FitLabel
+  recommendation  String
+  strengths       String[]
+  gaps            String[]
+  questions       String[]
+  breakdown       Json
+  humanOverride   Int?
+  createdAt       DateTime      @default(now())
+  role            Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  targetProfile   TargetProfile @relation(fields: [targetProfileId], references: [id], onDelete: Restrict)
+
+  @@index([roleId, createdAt])
+}
+
+model Application {
+  id                String            @id @default(cuid())
+  roleId            String            @unique
+  status            ApplicationStatus @default(DISCOVERED)
+  applicationDate   DateTime?
+  cvVersion         String?
+  submittedSalary   Int?
+  submittedCurrency String?
+  followUpDate      DateTime?
+  nextAction        String?
+  additionalInfo    String?
+  outcomeReason     String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  role              Role              @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  notes             Note[]
+  reminders         Reminder[]
+  interviews        Interview[]
+}
+
+model Contact {
+  id              String    @id @default(cuid())
+  companyId       String
+  name            String
+  title           String?
+  email           String?
+  profileUrl      String?
+  notes           String?
+  lastContactedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, name])
+}
+
+model Interview {
+  id            String           @id @default(cuid())
+  roleId        String
+  applicationId String?
+  stage         InterviewStage
+  scheduledAt   DateTime
+  outcome       InterviewOutcome @default(PENDING)
+  notes         String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  role          Role             @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  application   Application?     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([scheduledAt])
+  @@index([roleId, scheduledAt])
+}
+
+model Project {
+  id             String   @id @default(cuid())
+  name           String
+  summary        String
+  stack          String[]
+  relevanceTags  String[]
+  interviewStory String
+  caveats        String[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  notes          Note[]
+}
+
+model Note {
+  id            String       @id @default(cuid())
+  body          String
+  scope         NoteScope
+  companyId     String?
+  roleId        String?
+  applicationId String?
+  projectId     String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  company       Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role          Role?        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  project       Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Reminder {
+  id            String         @id @default(cuid())
+  applicationId String?
+  title         String
+  dueAt         DateTime
+  status        ReminderStatus @default(OPEN)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  application   Application?   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+}
+
+model Digest {
+  id          String   @id @default(cuid())
+  content     String
+  inputCounts Json
+  createdAt   DateTime @default(now())
+}
+
+model ImportRun {
+  id           String   @id @default(cuid())
+  kind         String
+  totalRows    Int
+  importedRows Int
+  errors       Json
+  createdAt    DateTime @default(now())
+}
+
+model Workspace {
+  id               String            @id @default(cuid())
+  clerkOrgId       String            @unique
+  name             String
+  createdByClerkId String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  members          WorkspaceMember[]
+  launchPlans      LaunchPlan[]
+  campaignProjects CampaignProject[]
+  usageEvents      AiUsageEvent[]
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  workspaceId String
+  clerkUserId String
+  role        String    @default("member")
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, clerkUserId])
+  @@index([clerkUserId])
+}
+
+model LaunchPlan {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  createdBy     String
+  productBrief  String
+  audience      String
+  launchDate    String
+  constraints   String?
+  availableAssets String?
+  finalOutput   String
+  toolEvents    Int       @default(0)
+  textChars     Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+model CampaignProject {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  createdBy       String
+  brief           String
+  audience        String
+  product         String
+  tone            String
+  channels        String[]
+  result          Json
+  generatedImages Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+model AiUsageEvent {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  createdBy        String
+  feature          String
+  estimatedTextChars Int     @default(0)
+  generatedImages  Int       @default(0)
+  createdAt        DateTime  @default(now())
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([feature, createdAt])
+}

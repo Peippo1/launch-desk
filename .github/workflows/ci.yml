@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - "codex/**"
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: "postgresql://nereid:nereid_local_only@localhost:5432/nereid_scout?schema=public"
+      NEREID_ACCESS_TOKEN: "ci-access-token"
+      OPENAI_API_KEY: ""
+      OPENAI_MODEL: "gpt-5.6"
+      OPENAI_CAMPAIGN_TEXT_MODEL: "gpt-5.6"
+      OPENAI_IMAGE_MODEL: "gpt-image-2"
+      OPENAI_IMAGE_SIZE: "1024x1024"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx prisma validate
+      - run: npm test
+      - run: npm run build
